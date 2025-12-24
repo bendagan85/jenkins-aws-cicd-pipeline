@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_security_group" "jenkins_sg_lab" {
-  ingress { # Application Ports (v1 & v2)
+  ingress { 
     from_port   = 8081
     to_port     = 8082
     protocol    = "tcp"
@@ -12,21 +12,21 @@ resource "aws_security_group" "jenkins_sg_lab" {
   name        = "jenkins-sg-lab-v2"
   description = "Allow SSH, Jenkins, and App"
 
-  ingress { # SSH
+  ingress { 
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress { # Jenkins UI
+  ingress {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress { # The Node App (מהסילבוס)
+  ingress { 
     from_port   = 8000
     to_port     = 8000
     protocol    = "tcp"
@@ -41,7 +41,7 @@ resource "aws_security_group" "jenkins_sg_lab" {
   }
 }
 
-# --- שרת המאסטר (הקיים) ---
+
 resource "aws_instance" "jenkins_server" {
   ami           = "ami-0e2c8caa4b6378d8c"
   instance_type = "t3.small"
@@ -56,7 +56,7 @@ resource "aws_instance" "jenkins_server" {
               sudo systemctl start docker
               sudo chmod 666 /var/run/docker.sock
 
-              # הרצת ג'נקינס
+
               sudo docker run -d -p 8080:8080 -p 50000:50000 \
               -v jenkins_home:/var/jenkins_home \
               -v /var/run/docker.sock:/var/run/docker.sock \
@@ -65,7 +65,7 @@ resource "aws_instance" "jenkins_server" {
               --name jenkins \
               jenkins/jenkins:lts
 
-              # התקנת דוקר בתוך הקונטיינר
+             
               sudo docker exec -u root jenkins apt-get update
               sudo docker exec -u root jenkins apt-get install -y docker.io
               EOF
@@ -75,28 +75,28 @@ resource "aws_instance" "jenkins_server" {
   }
 }
 
-# --- שרת הסלייב (החדש!) ---
-resource "aws_instance" "jenkins_slave" {
-  ami           = "ami-0e2c8caa4b6378d8c" # אותו AMI (אובונטו)
-  instance_type = "t3.small"             # מספיק חזק לעבודה
-  
-  vpc_security_group_ids = [aws_security_group.jenkins_sg_lab.id] # משתמש באותו סקיוריטי גרופ
-  key_name               = "myfirstkey"                           # משתמש באותו מפתח
 
-  # סקריפט התקנה אוטומטי לסלייב (חוסך לך עבודה ידנית!)
+resource "aws_instance" "jenkins_slave" {
+  ami           = "ami-0e2c8caa4b6378d8c" 
+  instance_type = "t3.small"
+  
+  vpc_security_group_ids = [aws_security_group.jenkins_sg_lab.id] 
+  key_name               = "myfirstkey"                          
+
+ 
   user_data = <<-EOF
               #!/bin/bash
               sudo apt-get update -y
               
-              # התקנת Java 17 (חובה בשביל הסלייב)
+            
               sudo apt-get install fontconfig openjdk-17-jre -y
               
-              # התקנת דוקר (כדי שיוכל לבנות אימג'ים)
+              
               sudo apt-get install docker.io -y
               sudo systemctl start docker
               sudo chmod 666 /var/run/docker.sock
               
-              # יצירת התיקייה שג'נקינס יעבוד בה
+              
               mkdir -p /home/ubuntu/jenkins_agent
               chown ubuntu:ubuntu /home/ubuntu/jenkins_agent
               EOF
@@ -117,4 +117,5 @@ output "jenkins_slave_private_ip" {
 
 output "jenkins_slave_public_ip" {
   value = aws_instance.jenkins_slave.public_ip
+
 }
