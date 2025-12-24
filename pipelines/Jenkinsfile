@@ -1,0 +1,82 @@
+pipeline {
+  
+    agent { label 'aws-agent' }
+
+ 
+    parameters {
+        choice(name: 'SERVICE_NAME', choices: ['my-app-v1', 'my-app-v2'], description: 'Which service to deploy?')
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Tag for the image')
+        booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Deploy after build?')
+    }
+
+    environment {
+        DOCKERHUB_USER = 'bendagan' 
+        
+        DOCKER_CREDS = credentials('dockerhub-creds')
+    }
+
+    stages {
+        stage('Generate App') {
+            steps {
+               
+                sh 'mkdir -p app'
+                sh "echo '<html><body style=\"background-color:powderblue;\"><h1>Welcome to ${params.SERVICE_NAME}</h1><h3>Deployed by Jenkins! 🚀</h3></body></html>' > app/index.html"
+                
+              
+                sh """
+                echo 'FROM nginx:alpine' > Dockerfile
+                echo 'COPY app/index.html /usr/share/nginx/html/index.html' >> Dockerfile
+                """
+            }
+        }
+
+        stage('Build Image') { 
+        
+            steps {
+                script {
+                    echo "Building image..."
+                    sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE_NAME}:${params.IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Push to Hub') { 
+        
+            steps {
+                script {
+                    echo "Login to DockerHub..."
+                  
+                    sh "echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin"
+                    
+                    echo "Pushing image..."
+                    sh "docker push ${DOCKERHUB_USER}/${params.SERVICE_NAME}:${params.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy to Server') { 
+            
+            when {
+                expression { return params.DEPLOY }
+            }
+            steps {
+                script {
+                    echo "Deploying..."
+                    sh "docker rm -f ${params.SERVICE_NAME} || true"
+                    
+                    
+                    def port = (params.SERVICE_NAME == 'my-app-v1') ? '8081' : '8082'
+                    
+                    
+                    sh """
+                        docker run -d -p ${port}:80 \
+                        --name ${params.SERVICE_NAME} \
+                        ${DOCKERHUB_USER}/${params.SERVICE_NAME}:${params.IMAGE_TAG}
+                    """
+                    
+                    echo "Application deployed successfully on port ${port}!"
+                }
+            }
+        }
+    }
+}
